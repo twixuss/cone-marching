@@ -1,0 +1,33 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.10.35013.160
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "raymarch-template", "raymarch-template.vcxproj", "{2DA34FA9-4075-4752-A1C7-4E14BC735DF3}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Элементы решения", "Элементы решения", "{00FD5BA5-419F-4550-83E2-708F2F5F77FB}"
+	ProjectSection(SolutionItems) = preProject
+		dep\tl\tl.natvis = dep\tl\tl.natvis
+	EndProjectSection
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|x64 = Debug|x64
+		DebugFast|x64 = DebugFast|x64
+		Release|x64 = Release|x64
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{2DA34FA9-4075-4752-A1C7-4E14BC735DF3}.Debug|x64.ActiveCfg = Debug|x64
+		{2DA34FA9-4075-4752-A1C7-4E14BC735DF3}.Debug|x64.Build.0 = Debug|x64
+		{2DA34FA9-4075-4752-A1C7-4E14BC735DF3}.DebugFast|x64.ActiveCfg = DebugFast|x64
+		{2DA34FA9-4075-4752-A1C7-4E14BC735DF3}.DebugFast|x64.Build.0 = DebugFast|x64
+		{2DA34FA9-4075-4752-A1C7-4E14BC735DF3}.Release|x64.ActiveCfg = Release|x64
+		{2DA34FA9-4075-4752-A1C7-4E14BC735DF3}.Release|x64.Build.0 = Release|x64
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {4F0CBF9C-C3A7-4366-A252-79DBBC009BEF}
+	EndGlobalSection
+EndGlobal

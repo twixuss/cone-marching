@@ -1,0 +1,181 @@
+//#pragma optimize level 3
+//precision lowp float;
+
+#define PI 3.1415926535897932384626433832795
+#define TAU 6.283185307179586476925286766559
+
+uniform float MAX_DIST;
+uniform float SURF_DIST ;
+
+float random_float(vec3 p){
+	p  = fract(p * .1031);
+	p += dot(p, p.zyx + 31.32);
+	return fract((p.x + p.y) * p.z);
+}
+vec3 random_vec3(vec3 a) {
+	a = fract(a * vec3(.1031, .1030, .0973));
+	a += dot(a, a.yxz+33.33);
+	return fract((a.xxy + a.yxx)*a.zyx);
+}
+
+float distance_squared3(vec3 a, vec3 b) {
+	a -= b;
+	return dot(a, a);
+}
+float distanceToLine3(vec3 point, vec3 linea, vec3 lineb) {
+	float l2 = distance_squared3(linea, lineb);
+	if (l2 == 0.) return 0.;
+
+	float t = dot(point - linea, lineb - linea) / l2;
+	t = clamp(t, 0., 1.);
+	vec3 projection = linea + t * (lineb - linea);
+	return distance(point, projection);
+}
+
+float snoise1(vec3 uv){
+	vec3 r = fract(uv);
+	r = smoothstep(0., 1., r);
+
+	vec3 t = floor(uv);
+	
+
+	float a = random_float(t + vec3(0,0,0));
+	float b = random_float(t + vec3(1,0,0));
+	float c = random_float(t + vec3(0,1,0));
+	float d = random_float(t + vec3(1,1,0));
+	float e = random_float(t + vec3(0,0,1));
+	float f = random_float(t + vec3(1,0,1));
+	float g = random_float(t + vec3(0,1,1));
+	float h = random_float(t + vec3(1,1,1));
+	return mix(mix(mix(a, b, r.x), mix(c, d, r.x), r.y),
+			   mix(mix(e, f, r.x), mix(g, h, r.x), r.y), r.z);
+}
+
+vec3 snoise3(vec3 uv){
+	vec3 r = fract(uv);
+	r = smoothstep(0., 1., r);
+
+	vec3 t = floor(uv);
+	
+
+	vec3 a = random_vec3(t + vec3(0,0,0));
+	vec3 b = random_vec3(t + vec3(1,0,0));
+	vec3 c = random_vec3(t + vec3(0,1,0));
+	vec3 d = random_vec3(t + vec3(1,1,0));
+	vec3 e = random_vec3(t + vec3(0,0,1));
+	vec3 f = random_vec3(t + vec3(1,0,1));
+	vec3 g = random_vec3(t + vec3(0,1,1));
+	vec3 h = random_vec3(t + vec3(1,1,1));
+	return mix(mix(mix(a, b, r.x), mix(c, d, r.x), r.y),
+			   mix(mix(e, f, r.x), mix(g, h, r.x), r.y), r.z);
+}
+
+float sdRGrid(vec3 uv) {
+#if 1
+	//uv += snoise3(uv) * 0.5;
+	uv = fract(uv) - 0.5;
+	vec3 r;
+	r.x = length(uv.yz);
+	r.y = length(uv.xz);
+	r.z = length(uv.xy);
+	return min(r.x, min(r.y, r.z));
+#else
+	vec3 tile = floor(uv);
+	vec3 local = uv - tile;
+	
+	float d = 100.;
+	
+	vec3 r[3*3*3];
+	
+	for (int x = -1; x <= 1; ++x) {
+		for (int y = -1; y <= 1; ++y) {
+			for (int z = -1; z <= 1; ++z) {
+				int ix = x + 1;
+				int iy = y + 1;
+				int iz = z + 1;
+				r[ix*3*3 + iy*3 + iz] = vec3(x,y,z) + random_vec3(tile + vec3(x,y,z));
+			}
+		}
+	}
+	
+	for (int x = 0; x < 3; ++x) {
+		for (int y = 0; y < 3; ++y) {
+			for (int z = 0; z < 2; ++z) {
+				d = min(d, distanceToLine3(local, r[x*3*3 + y*3 + z], r[(x  )*3*3 + (y  )*3 + (z+1)]));
+				d = min(d, distanceToLine3(local, r[x*3*3 + z*3 + y], r[(x  )*3*3 + (z+1)*3 + (y  )]));
+				d = min(d, distanceToLine3(local, r[z*3*3 + x*3 + y], r[(z+1)*3*3 + (x  )*3 + (y  )]));
+			}
+		}
+	}
+	
+	return d;
+#endif
+}
+
+float sphere(vec3 p, float radius) {
+	return length(p) - radius;
+}
+
+float box(vec3 p, vec3 size) {
+	vec3 d = abs(p) - size;
+	return length(max(d, 0.0)) + min(max(d.x, max(d.y, d.z)), 0.0);
+}
+
+float box_round(vec3 p, vec3 size, float r) {
+	vec3 d = abs(p) - size + r;
+	return length(max(d, 0.0)) + min(max(d.x, max(d.y, d.z)), 0.0) - r;
+}
+
+float cylinder(vec3 p, float radius, float height) {
+	vec2 d = vec2(length(p.xz) - radius, abs(p.y) - height);
+	return length(max(d, 0.0)) + min(max(d.x, d.y), 0.0);
+}
+
+float unite(float d1, float d2) {
+	return min(d1, d2);
+}
+
+float subtract(float d1, float d2) {
+	return max(d1, -d2);
+}
+
+float intersect(float d1, float d2) {
+	return max(d1,d2);
+}
+
+float xor(float d1, float d2) {
+	return max(min(d1, d2), -max(d1, d2));
+}
+
+float unite_smooth(float d1, float d2, float k) {
+	float h = clamp(0.5 + 0.5*(d2-d1)/k, 0.0, 1.0);
+	return mix(d2, d1, h) - k*h*(1.0-h);
+}
+
+float subtract_smooth(float d1, float d2, float k) {
+	float h = clamp(0.5 - 0.5*(-d2-d1)/k, 0.0, 1.0);
+	return mix(-d2, d1, h) + k*h*(1.0-h);
+}
+
+float intersect_smooth(float d1, float d2, float k) {
+	float h = clamp(0.5 - 0.5*(d2-d1)/k, 0.0, 1.0);
+	return mix(d2, d1, h) + k*h*(1.0-h);
+}
+
+#define octave(func, input, scale) func((input)*(scale))/(scale)
+
+float scene_distance(vec3 p) {
+	float d = 1e9;
+	//d = unite(d, octave(sdRGrid, p, 0.2) - 0.6);
+	//d = subtract(d, -p.y);
+	d = p.y
+		+ octave(snoise1, p, 1)
+		+ octave(snoise1, p, 0.5)
+		+ octave(snoise1, p, 0.25)
+		+ octave(snoise1, p, 0.125)
+	;
+	return d;
+}
+
+#define map(v,a,b,c,d) ((v-a)/(b-a)*(d-c)+c)
+#define mapc(v,a,b,c,d) map(clamp(v,min(a,b),max(a,b)),a,b,c,d)

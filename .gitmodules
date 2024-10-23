@@ -1,0 +1,6 @@
+[submodule "dep/tl"]
+	path = dep/tl
+	url = https://github.com/twixuss/tl
+[submodule "dep/imgui"]
+	path = dep/imgui
+	url = https://github.com/ocornut/imgui

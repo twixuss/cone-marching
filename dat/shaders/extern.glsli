@@ -1,0 +1,454 @@
+// From https://www.shadertoy.com/view/ldsGRX
+
+float Sphere( vec3 p, vec3 c, float r )
+{
+	return length(p-c) - r;
+}
+
+float Box( vec3 p, vec3 b )
+{
+  vec3 d = abs(p) - b;
+  return min(max(d.x,max(d.y,d.z)),0.0) + length(max(d,0.0));
+}
+
+float BevelBox(vec3 p, vec3 size, float box_r)
+{
+	vec3 box_edge = size - box_r*0.5;
+	vec3 dd = abs(p) - box_edge;
+
+	//in (dd -ve)
+	float maxdd = max(max(dd.x,dd.y),dd.z);
+	//0 away result if outside
+	maxdd = min(maxdd,0.0);
+		
+	//out (+ve);
+	dd = max(dd,0.0);
+	float ddd = (length(dd)-box_r);
+
+	//combine the in & out cases
+	ddd += maxdd;
+	return ddd;
+}
+
+float CylinderXY( vec3 p, vec3 c ) {
+	return length(p.xy-c.xy)-c.z;
+}
+
+float CylinderXZ( vec3 p, vec3 c ) {
+	return length(p.xz-c.xy)-c.z;
+}
+
+float CylinderYZ( vec3 p, vec3 c ) {
+	return length(p.yz-c.xy)-c.z;
+}
+
+float udHexPrism( vec2 p, float h ) {
+    vec2 q = abs(p);
+    return max(q.x+q.y*0.57735,q.y*1.1547)-h;
+}
+
+float Cone( vec3 p, vec2 c )
+{
+    // c must be normalized
+//    float q = length(p.xz);
+	
+	p.xz *= p.xz;
+	p.xz *= p.xz;
+	p.xz *= p.xz;
+	float q = pow(p.x+p.z, 1./8.);	
+		
+    return dot(c,vec2(q,p.y));
+}
+
+// cube intersection function
+//borrowed from Exploding Cubes by Kali https://www.shadertoy.com/view/Xdf3zl
+bool RayBox( in vec3 p, in vec3 dir, in vec3 pos, in vec3 edge, out float t
+		//	inout vec2 startend,
+		//	inout vec3 nor, 
+		//	inout vec3 hit
+		   )
+{
+	float fix=.00001;
+	vec3 minim=pos-edge*.5;
+	vec3 maxim=pos+edge*.5;
+	vec3 inv_dir = vec3(1.)/dir;
+	vec3 omin = ( minim - p ) * inv_dir;
+	vec3 omax = ( maxim - p ) * inv_dir;
+	vec3 maxi = max ( omax, omin );
+	vec3 mini = min ( omax, omin );
+	vec2 startend;
+	startend.y = min ( maxi.x, min ( maxi.y, maxi.z ) );
+	startend.x = max ( max ( mini.x, 0.0 ), max ( mini.y, mini.z ) );
+	float rayhit=0.;
+	if (startend.y-startend.x>fix) rayhit=1.;
+
+	t = startend.x;
+	
+//	hit=p+startend.x*dir; //intersection point
+/*	
+	// get normal
+		nor=vec3(0.,0.,-1.);
+		if (abs(hit.x-minim.x)<fix) nor=vec3( 1., 0., 0.);
+		if (abs(hit.y-minim.y)<fix) nor=vec3( 0., 1., 0.);
+		if (abs(hit.z-minim.z)<fix) nor=vec3( 0., 0., 1.);
+		if (abs(hit.x-maxim.x)<fix) nor=vec3(-1., 0., 0.);
+		if (abs(hit.y-maxim.y)<fix) nor=vec3( 0.,-1., 0.);
+*/
+	return rayhit>0.5;
+}
+
+//stoopid old VLIW processors
+bvec4 RayVs4Boxes(in vec3 p, in vec3 dir, in vec4 pos_x, in vec4 pos_y, in vec4 pos_z,
+				  in vec4 edge_x, in vec4 edge_y, in vec4 edge_z,
+				  out vec4 t
+	)
+{
+	vec3 inv_dir = vec3(1.)/dir;
+	
+	vec4 minim_x=pos_x-edge_x*.5;
+	vec4 minim_y=pos_y-edge_y*.5;
+	vec4 minim_z=pos_z-edge_z*.5;
+	
+	vec4 maxim_x=pos_x+edge_x*.5;
+	vec4 maxim_y=pos_y+edge_y*.5;
+	vec4 maxim_z=pos_z+edge_z*.5;
+
+	vec4 omin_x = ( minim_x - p.x ) * inv_dir.x;
+	vec4 omin_y = ( minim_y - p.y ) * inv_dir.y;
+	vec4 omin_z = ( minim_z - p.z ) * inv_dir.z;
+	
+	vec4 omax_x = ( maxim_x - p.x ) * inv_dir.x;
+	vec4 omax_y = ( maxim_y - p.y ) * inv_dir.y;
+	vec4 omax_z = ( maxim_z - p.z ) * inv_dir.z;
+
+	vec4 maxi_x = max ( omax_x, omin_x );
+	vec4 maxi_y = max ( omax_y, omin_y );
+	vec4 maxi_z = max ( omax_z, omin_z );
+	
+	vec4 mini_x = min ( omax_x, omin_x );
+	vec4 mini_y = min ( omax_y, omin_y );
+	vec4 mini_z = min ( omax_z, omin_z );
+
+	vec4 start = max ( max ( mini_x, vec4(0.) ), max ( mini_y, mini_z ) );
+	vec4 end = min ( maxi_x, min ( maxi_y, maxi_z ) );
+	
+	t = start;
+	
+	return greaterThan(end-start,vec4(.00001));
+}
+
+
+vec3 RotX(vec3 p, float t) {
+	float c = cos(t); float s = sin(t);
+	return vec3(p.x,
+				p.y*c+p.z*s,
+				-p.y*s+p.z*c);
+}
+
+vec3 RotY(vec3 p, float t) {
+	float c = cos(t); float s = sin(t);
+	return vec3(p.x*c+p.z*s,
+				p.y,
+				-p.x*s+p.z*c);
+}
+
+vec3 RotZ(vec3 p, float t) {
+	float c = cos(t); float s = sin(t);
+	return vec3(p.x*c+p.y*s,
+				-p.x*s+p.y*c,
+				p.z);
+}
+
+float Rep(float x, float t) { return mod(x,t)-0.5*t; }
+float U(float a,float b) { return min(a,b); }
+float I(float a,float b) { return max(a,b); }
+float S(float a,float b) { return max(a,-b); }
+float ClipX(float d, vec3 p, float x) { return I(d,p.x-x); }
+float ClipXX(float d, vec3 p, float x) { return I(d,abs(p.x)-x); }
+
+float ClipY(float d, vec3 p, float x) { return I(d,p.y-x); }
+float ClipYY(float d, vec3 p, float x) { return I(abs(d),p.y-x); }
+
+float ClipZZ(float d, vec3 p, float x) { return I(d,abs(p.z)-x); }
+
+float Stair(vec3 p)
+{
+	//convention: neg in, pos out
+	//Vertical distance to stair = y - floor(x)
+	//Horizontal distance to stair =  x - ceil(y)
+	float stair = min( abs(p.y-floor(p.x)), abs(p.x-ceil(p.y)) );
+	
+	float o = p.y > p.x ? 0. : 1.;				//select y=x or y=x-1 as bounding line
+	vec2 A = p.xy +(p.y-p.x+o)*vec2(.5,-.5);	//nearest point of stair on line
+	A=round(A);									//step it
+	float t1 = length(p.xy-A);					//distance to it
+	stair = min(stair,t1);						//min of that and straight line h or v distance
+	
+	stair = p.y < floor(p.x) ? -stair : stair;	//fix sign
+	
+	stair -= 0.1;	//bevel!
+
+//	stair = ClipZZ(stair,p,2.);
+	return stair;	
+}
+
+float floor_height = -15.0;
+float ground_height = -5.;
+
+vec3 TowerReflect(vec3 p)
+{
+	vec3 q=p;
+	q.xz=abs(p.xz); 
+	q.xz -= vec2(6.,8.);
+	return q;
+}
+
+vec3 ss_grad(vec3 X)
+{
+	return cross(dFdx(X),dFdy(X));
+}
+
+float bevel = 0.1;
+
+float Tower(vec3 p)
+{
+	vec3 q = p;
+	p=TowerReflect(p);
+	
+	//main tower
+	float w = 5.0*0.25;
+	float h = 10.0*0.5;
+	float hh = q.x > 0. ? h : 10.*0.3;
+	float w_fat = w + clamp(p.y-3.5-(hh-h),0.,0.9)*0.2;
+	float d = BevelBox(p-vec3(0.,(hh-h),0.),vec3(w_fat,h,w_fat),bevel);
+	return d;
+}
+
+float Wall(vec3 p)
+{
+//	vec3 tex=Tex(p);
+//	float grain = tex.x*0.05;
+	
+	//wall	
+	float thick = 0.5 + (p.z > 0. ? clamp(p.y+2.5,0.,0.5)*.5 : 0.);
+	float wall_d = BevelBox(p+vec3(3.,3.0,-0.5),vec3(3.0,2.0,thick),bevel); 
+
+	vec3 cren_p = p;
+	cren_p.x = Rep(cren_p.x,1.);
+	wall_d = S(wall_d, Box(cren_p,vec3(0.25,1.5,10.)));
+	wall_d = S(wall_d, Box(p, vec3(7.0,2.0,1.0)));
+
+	float stair_size = 4.;
+	float s = Stair(p*stair_size)/stair_size;
+	s = ClipZZ(s,p,1.);
+	s = ClipY(s,p,-2.);
+	s = ClipX(s,p,-1.);
+	wall_d = U(s,wall_d);
+	
+	return wall_d;	
+}
+
+float Pole(vec3 p)
+{
+	return ClipY( CylinderXZ(p,vec3(6.,8.,.1)), p, 9.);
+}
+
+float Flag(vec3 p)
+{
+	float t = 0;//iTime*2.;
+	float z=1.;
+	float z_off = 7.;
+	float s = sin(p.z+t)-sin(t+z+z_off);//-sin(7.5);
+	float d = BevelBox(p-vec3(s+6.,8.,z_off),vec3(0.01,0.7,z),0.05);
+	
+	d=U(d,Pole(p));
+    return d * 0.7; //thanks to vipiao fixes flag glitch with lipschitz constant
+}
+
+float Gate(vec3 p)
+{
+	p += vec3(6.75,3.,0.);
+	
+	//main
+	float fat = clamp(p.y-2.,0.,1.)*.45;
+	float d = BevelBox(p,vec3(1.+fat,4.0,2.+fat),bevel);
+	
+	//hollow top
+	d = S(d,Box(p+vec3(0.,-5.,0.),vec3(1.,2.0,2.)));
+	
+	vec3 cren_p = p;
+	cren_p.z = Rep(cren_p.z,0.8);
+	float cd = Box(cren_p+vec3(0.,-5.,0.),vec3(2.,1.5,0.2));
+	d = S(d,cd);
+
+	cren_p=p;
+	cren_p.x = Rep(cren_p.x,1.6);	
+	cd=Box(cren_p+vec3(0,-5.,0.),vec3(0.2,1.5,4.0));
+//	cd = ClipXX(cd,cren_p,0.250);	
+	d = S(d,cd);
+	
+//	d = U(d, BevelBox(p,vec3(1.,2.85,1.2),0.25));
+	
+	//archway
+	float arch=clamp(p.y,0.,1.);
+	arch = sqrt(1.-arch*arch);
+	d = S(d,Box(p,vec3(2.,2.0,0.0+arch)));
+	
+	float w = 1.;
+	float h = 3.;
+//	float grain = 0.;
+	float foot = 0.1*w + clamp(-p.y-1.,0.,1.)*0.2;
+	float foot_d = BevelBox(abs(p)-vec3(w,0.,w), vec3(foot,h,0.1*w),.05);
+//	foot_d = ClipY(foot_d,p,hh);
+	d = U(d, foot_d);
+	foot_d = BevelBox(abs(p)-vec3(w,0.,2.*w), vec3(foot,h,foot),.05);
+	d = U(d, foot_d);
+	
+	return d;
+}
+
+float Roof(vec3 p)
+{
+	p += vec3(-6.,3.,0.);
+	
+	float r=8.0-p.y*.9;
+	float s=6.5-p.y*.8;
+	float d = BevelBox(p+vec3(0.,-6.,0.),vec3(s,1.0,r),0.5);
+
+	return d;	
+}
+		   
+float House(vec3 p)
+{
+	p += vec3(-6.,3.,0.);
+
+	//main
+	float fat = clamp(p.y-1.5,0.,1.)*.45;
+	float d = BevelBox(p,vec3(2.+fat,5.0,2.75+fat),0.05);
+	
+	//hollow
+	d = S(d, Box(p,vec3(1.5+fat,6.0,2.5+fat)));
+
+	//door
+	float arch=clamp(p.y+1.,0.,1.);
+	arch = sqrt(1.-arch*arch)*.5;
+	d = S(d,Box(p+vec3(2.,1.,1.),vec3(4.,1.0,0.0+arch)));
+	
+	//windows
+	vec3 q=p;
+	q.z = Rep(q.z,1.5);
+	q.y -= 4.;
+	
+	float t=clamp(q.y,0.,1.);
+	float win = Box(q,vec3(10.,1.0,0.25-t));
+	d = S(d,win);
+	
+	//roof
+	float r=8.0-p.y*.9;
+	float s=6.5-p.y*.8;
+	d = U(d,BevelBox(p+vec3(0.,-6.,0.),vec3(s,1.0,r),0.5));
+	
+	//columns	
+	float w = 3.;
+	float foot = 0.1*w + clamp(-p.y-1.,0.,1.)*0.2;
+	p.z = abs(p.z);
+	d = U(d,Box(p+vec3(2.,1.,-2.4),vec3(foot,4.0,0.125)));
+	
+	return d;	
+}
+
+float SoftU(float a, float b, float k)
+{	
+	float sum = exp(k*a) + exp(k*b);
+
+	return log( sum ) / k;	
+}
+
+float Hill(vec3 p)
+{
+	float plane = p.y-floor_height;
+
+	float mound = Cone( p+vec3(0.,-6.5,0.), normalize(vec2(1.,1.)) );
+
+	mound = SoftU( p.y+5., mound, 1.);
+
+//	mound += (sin(p.x)+sin(p.y))*0.2;
+	
+	return SoftU(plane,mound,-0.5);
+}
+
+
+float sdfCastle( vec3 p)
+{
+	float d = Hill(p);
+//	return Hill(p);
+//	
+//	p.y += 0.2*sin(p.z*0.5+iTime);
+
+	//floor!
+//	float d = p.y-floor_height+tex.x*.25-.05-sin(p.z)*.1;
+//	float d = p.y-floor_height;
+	
+//	if (p.x < 0.)
+//	if (sdf_bound_test.z)
+		d = U(d,Gate(p));
+//	else
+//	if (sdf_bound_test.w)
+		d = U(d,House(p));
+	
+//	p = RotY(p,iTime);
+	
+	vec3 q = p;
+	p=TowerReflect(p);
+	
+#if 1	
+	//walls
+//	if (sdf_bound_test.y)
+	{
+		d = U(d,Wall(p));
+		d = U(d,Wall(p.zyx));
+	}
+	
+//	if (sdf_bound_test.x)
+	{
+		//main tower
+		float w = 5.0*0.25;
+		float h = 10.0*0.5;
+		float hh = q.x > 0. ? h : 10.*0.3;
+		float w_fat = w + clamp(p.y-3.5-(hh-h),0.,0.9)*0.2;
+		d = U(d, BevelBox(p-vec3(0.,(hh-h),0.),vec3(w_fat,h,w_fat),.05));
+	
+		float foot = 0.1*w + clamp(-p.y-3.,0.,1.)*0.2;
+		float foot_d = BevelBox(abs(p)-vec3(w,0.,w), vec3(foot,h,foot),.05);
+		foot_d = ClipY(foot_d,p,hh);
+		d = U(d, foot_d);
+		
+		//hollow out
+		d = S(d,Box(p,vec3(w*0.8,h*2.0,w*0.8)));
+		
+		//window
+		float wind_h = h*.15;
+		float wind_w = w*0.2; // - clamp(p.y*.5,0.,1.);
+		vec3 wind_p = p;
+		wind_p.y -= 2.+(hh-h);
+		d = S(d,Box(wind_p,vec3(w*1.25,wind_h,wind_w)));
+		d = S(d,Box(wind_p,vec3(wind_w,wind_h,w*1.2)));
+	
+		//sil
+		wind_p.xz=abs(wind_p.xz);
+		vec3 sil_off = vec3(w,-h*.15,0.);
+		vec3 sil = vec3(w*.15,h*.0125,w*0.25);
+		d = U(d,Box(wind_p-sil_off,sil));
+		d = U(d,Box(wind_p-sil_off.zyx,sil.zyx));
+					
+		//crenulate towers
+		p.xz=abs(p.xz);
+		float cren_w=w*0.3;
+		d = U(d, BevelBox(p-vec3(w,hh*1.1,w),vec3(cren_w,h*0.15,cren_w),.1));
+				
+		d = U(d,Flag(q));
+	}
+#endif	
+	
+	return d;
+}
